@@ -1,4 +1,4 @@
-﻿<canvas id="laserCanvas" height="500" width="1500"></canvas>
+﻿<div class="canvasContainer"><canvas id="laserCanvas" ></canvas></div>
 <label for="laserOffset">Offset:</label>
 <input name="laserOffset" type="text" value="5" placeholder="5" />
 <label for="laserAngle">Angle:</label>
@@ -72,13 +72,15 @@
             renderPlot();
         }
     }
-    originY = 250;
+    originY = $('.canvasContainer').height()*2/3
     var yOffset = parseFloat($('input[name="laserOffset"]').val());
     var horiz = originY;
     var $canvas = $('#laserCanvas');
     var ctx = $canvas[0].getContext('2d');
     $(document).ready(function () {
-
+        //Canvas size stuff
+        ctx.canvas.width = $('.canvasContainer').width();
+        ctx.canvas.height = $('.canvasContainer').height();
 
 
         var orig = { x: 10, theta: 0 };
@@ -364,4 +366,11 @@ margin-left: 30px;
     #opticsDetails label {
 width: 100px;
 }
+
+    .canvasContainer {
+        float:left;
+        width:90%;
+        height:70%;
+        display:block;
+    }
 </style>
