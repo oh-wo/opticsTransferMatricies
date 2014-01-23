@@ -1,0 +1,367 @@
+﻿<canvas id="laserCanvas" height="500" width="1500"></canvas>
+<label for="laserOffset">Offset:</label>
+<input name="laserOffset" type="text" value="5" placeholder="5" />
+<label for="laserAngle">Angle:</label>
+<input name="laserAngle" type="text" value="6" placeholder="6" />
+<div id="opticsContainer">
+<select id="optics" multiple="multiple">
+</select>
+<div id="opticsDetails">
+    <label for="optic-x">x-coord</label>
+    <input type="text" name="optic-x" disabled="disabled"/>
+    <label for="optic-x">y-coord</label>
+    <input type="text" name="optic-y" disabled="disabled"/>
+    <label for="optic-x">width</label>
+    <input type="text" name="optic-w" disabled="disabled"/>
+    <label for="optic-x">height</label>
+    <input type="text" name="optic-h" disabled="disabled"/>
+    <input id="opticsRemove" type="button" value="remove" />
+    <input id="opticsAdd" type="button" value="add new" />
+</div>
+    </div>
+<script>
+    var coords = [];
+    var optics = {
+        elements: [],
+        add: function (type, x, y, w, h) {
+            switch (type) {
+                case 'rect':
+                    this.elements[this.elements.length] = {
+                        type: 'rect',
+                        w: w,
+                        h: h,
+                        x: x,
+                        y: y,
+                    };
+                    break;
+            }
+        },
+        clear: function () {
+            this.elements = [];
+        },
+        show: function () {
+            var rectCount = 0;
+            var triCount = 0;
+            $(this.elements).each(function (i, optic) {
+                switch (optic.type) {
+                    case 'rect':
+                        rectCount++;
+                        $('<option index="' + i + '">' + optic.type + ' ' + rectCount + '</option>').appendTo('#optics');
+                        break;
+                    case 'tri':
+                        triCount++;
+                        $('<option index="' + i + '">' + optic.type + ' ' + triCount + '</option>').appendTo('#optics');
+                        break;
+                }
+
+            });
+        },
+        sortOptics: function () {
+            optics.elements.sort(function (a, b) {
+                return a.x - b.x;
+            });
+        },
+        remove: function (index) {
+            optics.elements.splice(index, 1);
+        },
+        refresh: function () {
+            this.sortOptics();
+            $('#optics').html('');
+            optics.show();
+            //$('#optics option[index="' + selIndex + '"]').attr('selected', 'selected');
+            renderPlot();
+        }
+    }
+    originY = 250;
+    var yOffset = parseFloat($('input[name="laserOffset"]').val());
+    var horiz = originY;
+    var $canvas = $('#laserCanvas');
+    var ctx = $canvas[0].getContext('2d');
+    $(document).ready(function () {
+
+
+
+        var orig = { x: 10, theta: 0 };
+        optics.add('rect', 150, horiz, 50, 100);
+        optics.add('rect', 300, horiz, 100, 100);
+        optics.add('rect', 1000, horiz, 200, 300);
+        optics.show();
+
+        coords = [];
+
+        var laser = [];
+        laser[0] = $M([
+            [1, 100],
+            [0, 1]
+        ]);
+        renderPlot();
+
+    });
+
+    //Input changes
+    $(document).on('keydown', 'input', function (e) { keyDownChecks(e) });
+    //Option change
+    $(document).on('change', '#optics', function (e) {
+        if ($('#optics option:selected').length > 0) {
+            $('#opticsDetails input').removeAttr('disabled')
+            var selIndex = $('#optics option:selected').attr('index');
+            $('input[name="optic-x"]').val(optics.elements[selIndex].x);
+            $('input[name="optic-y"]').val(optics.elements[selIndex].y);
+            $('input[name="optic-w"]').val(optics.elements[selIndex].w);
+            $('input[name="optic-h"]').val(optics.elements[selIndex].h);
+        } else {
+            $('#opticsDetails input').attr('disabled', 'disabled')
+        }
+    });
+    $(document).on('keydown', '#opticsDetails input', function (e) { saveChangesToOptics(e) });
+    $(document).on('keyup', '#opticsDetails input', function (e) { saveChangesToOptics(e) });
+    $(document).on('click', '#opticsRemove', function () {
+        optics.remove($('#optics option:selected').attr('index'));
+        optics.refresh();
+    });
+    $(document).on('click', '#opticsAdd', function () {
+        optics.add('rect', $canvas.width()*0.9, 700, 50, 50);
+        optics.refresh();
+    });
+    function saveChangesToOptics(e) {
+        var selIndex = $('#optics option:selected').attr('index');
+        optics.elements[selIndex].x = parseFloat($('input[name="optic-x"]').val());
+        optics.elements[selIndex].y = parseFloat($('input[name="optic-y"]').val());
+        optics.elements[selIndex].w = parseFloat($('input[name="optic-w"]').val());
+        optics.elements[selIndex].h = parseFloat($('input[name="optic-h"]').val());
+        renderPlot();
+    }
+    function keyDownChecks(e) {
+        e.preventDefault;
+        var $this = $(e.target);
+        switch (e.which) {
+            case 38:
+                $this.val(parseFloat($this.val()) + 1);
+                break;
+            case 40:
+                $this.val(parseFloat($this.val()) - 1);
+                break;
+        }
+        renderPlot();
+    }
+    function renderPlot() {
+        //prepare for new rendering
+        ctx.clearRect(0, 0, $canvas.width(), $canvas.height());
+
+
+        drawHorizon();
+        //get input data from user regarding laser orientation
+        yOffset = parseFloat($('input[name="laserOffset"]').val());
+        var initTheta = parseFloat($('input[name="laserAngle"]').val()) * Math.PI / 180;
+        //plane at which optics are to be mounted
+        
+        
+        //setup initial
+        coords = [];
+        coords[0] = [0, horiz-yOffset,initTheta];//reset the coordinates matrix so elements can be added and removed each time with no weird stuff
+
+
+        
+        //find the laser path up to the optic
+        var x1 = optics.elements[0].x;
+        var y1 = coords[coords.length - 1][1] - optics.elements[0].x * Math.tan(coords[coords.length - 1][2]);
+        var theta1 = Math.atan((coords[coords.length - 1][1] - y1) / (coords[coords.length - 1][0] - x1));
+        coords[coords.length] = [x1, y1, theta1];
+
+
+        var currentOffset = yOffset;
+
+        $(optics.elements).each(function (i, optic) {
+            //find the coordinates for each optic
+            
+            switch (optic.type) {
+                case 'rect':
+                    //show element to user
+                    drawRectangle(optic.x, optic.w, optic.h);
+
+                    //find the laser path through the optic - apply transformation
+                    mat = $M([
+                        [1, 0],
+                        [0, 1 / 500]
+                    ]);
+                    vectFinal = mat.x($V([currentOffset, theta1]));
+                    x2 = coords[coords.length - 1][0] + optic.w;
+                    currentOffset = vectFinal.e(1);
+                    theta2 = vectFinal.e(2);
+                    y2 = coords[coords.length - 1][1] + optic.w*Math.tan(theta2);
+                    coords[coords.length] = [x2, y2, theta2];
+                    //find the laser path from the optic - apply transformation
+                    mat = $M([
+                        [1, 0],
+                        [0, 500]
+                    ]);
+                    vectFinal = mat.x($V([currentOffset, theta2]));
+                    todo= 1000;
+                    x3 = optics.elements.length-1==i?$canvas.width():optics.elements[i+1].x;//TODO: add conditional next optic or end of canvas
+                    currentOffset = vectFinal.e(1);
+                    theta3 = vectFinal.e(2);
+                    y3 = coords[coords.length - 1][1] + (x3-x2) * Math.tan(theta3);
+                    coords[coords.length] = [x3, y3, theta3];
+                    break;
+            }
+
+
+        });
+
+
+
+
+
+
+        plotLaserPath(coords);
+        //add in the last laser line - after all the other bits and pieces
+        //var newX = $canvas.width();
+        //var newY = coords[coords.length - 1][1] + Math.tan(theta3) * (C.end.x - coords[1][0]);
+        //drawLine(coords[2][0], coords[2][1], , )
+
+    }
+
+    
+
+  
+
+    function plotLaserPath(coords) {
+        for (i = 0; i < (coords.length - 1) ; i++) {
+            drawLine(coords[i][0], coords[i][1], coords[i + 1][0], coords[i + 1][1], { 'color': '#f00' });
+        }
+    }
+
+    function drawRectangle(origX, width, height) {
+        var C = { start: 0, end: 0 };
+
+        var origY = originY - height / 2;
+
+        drawLine(origX, origY, origX + width, origY);
+        drawLine(origX + width, origY, origX + width, origY + height);
+        C.end = findCenterOfLine(origX + width, origY, origX + width, origY + height);
+        drawLine(origX, origY + height, origX + width, origY + height);
+        drawLine(origX, origY + height, origX, origY);
+        C.start = findCenterOfLine(origX, origY + height, origX, origY);
+        return C;
+    }
+
+    function drawPrism(origX, origY, apexAngle, incidentSideLength) {
+        //get angles (in radians)
+        apexAngle = apexAngle * Math.PI / 180;
+        var sideAngle = (Math.PI - apexAngle) / 2;
+
+        //define all the points (absolute)
+        var p1 = {
+            x: origX,
+            y: origY,
+        };
+        var p2 = {
+            x: incidentSideLength * Math.cos(sideAngle) + p1.x,
+            y: -incidentSideLength * Math.sin(sideAngle) + p1.y,
+        };
+        var p3 = {
+            x: incidentSideLength * Math.cos(sideAngle) + p2.x,
+            y: p1.y
+        };
+
+        drawLine(p1.x, p1.y, p2.x, p2.y);
+        drawLine(p2.x, p2.y, p3.x, p3.y);
+        drawLine(p3.x, p3.y, p1.x, p1.y);
+    }
+
+    function drawLine(x1, y1, x2, y2, opts) {
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        if (opts != undefined && opts['dash'] != undefined) {
+            ctx.dashedLine(x1, y1, x2, y2, opts['dash']);
+        } else {
+            ctx.lineTo(x2, y2);
+        }
+        ctx.strokeStyle = opts != undefined ? (opts['color'] != undefined ? opts['color'] : '#000') : '#000';
+
+        ctx.stroke();
+        ctx.closePath();
+    }
+
+    function findCenterOfLine(x1, y1, x2, y2) {
+        var c = {
+            x: (x1 + x2) / 2,
+            y: (y1 + y2) / 2
+        };
+        return c;
+    }
+
+    function plotCenterOfLine(x1, y1, x2, y2) {
+        C = findCenterOfLine(x1, y1, x2, y2);
+        drawLine(C.x - 5, C.y + 5, C.x + 5, C.y - 5, { 'color': '#f00' });
+        drawLine(C.x - 5, C.y - 5, C.x + 5, C.y + 5, { 'color': '#f00' });
+    }
+
+    function drawHorizon() {
+
+        drawLine(0, originY, $canvas.width(), originY, { 'color': 'blue', 'dash': 5 });
+    }
+
+    CanvasRenderingContext2D.prototype.dashedLine = function (x1, y1, x2, y2, dashLen) {
+        if (dashLen == undefined) dashLen = 2;
+        this.moveTo(x1, y1);
+
+        var dX = x2 - x1;
+        var dY = y2 - y1;
+        var dashes = Math.floor(Math.sqrt(dX * dX + dY * dY) / dashLen);
+        var dashX = dX / dashes;
+        var dashY = dY / dashes;
+
+        var q = 0;
+        while (q++ < dashes) {
+            x1 += dashX;
+            y1 += dashY;
+            this[q % 2 == 0 ? 'moveTo' : 'lineTo'](x1, y1);
+        }
+        this[q % 2 == 0 ? 'moveTo' : 'lineTo'](x2, y2);
+    };
+</script>
+<style>
+    html {
+        font-family: Calibri;
+    }
+
+    #laserCanvas {
+        border: solid 1px #000;
+    }
+
+    canvas, input, label {
+        float: left;
+        font-family: Calibri;
+        margin-top: 1%;
+        font-size: 1.5em;
+    }
+
+    label {
+        clear: left;
+    }
+
+    input {
+        padding-top: 1%;
+        padding-left: 1%;
+    }
+
+    #optics {
+float: left;
+clear: left;
+font-family: 'calibri';
+font-size: 1.5em;
+width: 141px;
+padding: 1%;
+}
+    #opticsContainer {
+float: right;
+}
+    #opticsDetails {
+float: left;
+margin-left: 30px;
+}
+    #opticsDetails label {
+width: 100px;
+}
+</style>
